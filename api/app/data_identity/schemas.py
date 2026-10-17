@@ -118,3 +118,12 @@ class MeterReadingResponse(MeterReadingCreate):
     org_id: UUID
     recorded_at: datetime
     model_config = ConfigDict(from_attributes=True)
+
+    # ==========================================
+# USER INVITE (FR-1.04) & GDPR (NFR-1.10)
+# ==========================================
+class UserInvite(BaseModel):
+    email: EmailStr
+    password: str = Field(..., min_length=6)
+    full_name: str
+    role: UserRole
