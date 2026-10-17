@@ -88,3 +88,33 @@ class FacilityResponse(FacilityCreate):
     id: UUID
     org_id: UUID
     model_config = ConfigDict(from_attributes=True)
+
+    # ==========================================
+# ASSET & METER READING SCHEMAS
+# ==========================================
+from api.app.core.enums import AssetKind, ReadingSource
+
+class AssetCreate(BaseModel):
+    name: str
+    kind: AssetKind
+    facility_id: Optional[UUID] = None
+
+class AssetResponse(AssetCreate):
+    id: UUID
+    org_id: UUID
+    code: str
+    is_active: bool
+    model_config = ConfigDict(from_attributes=True)
+
+class MeterReadingCreate(BaseModel):
+    asset_id: UUID
+    category: ActivityCategory
+    value: Decimal
+    unit: Unit
+    source: ReadingSource = ReadingSource.manual
+
+class MeterReadingResponse(MeterReadingCreate):
+    id: UUID
+    org_id: UUID
+    recorded_at: datetime
+    model_config = ConfigDict(from_attributes=True)
