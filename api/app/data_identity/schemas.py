@@ -57,3 +57,34 @@ class ActivityResponse(ActivityCreate):
     created_at: datetime
     
     model_config = ConfigDict(from_attributes=True)
+
+    # ==========================================
+# ORGANIZATION & FACILITY SCHEMAS
+# ==========================================
+
+class OrganizationResponse(BaseModel):
+    id: UUID
+    name: str
+    country_code: Optional[str] = None
+    industry: Optional[str] = None
+    employee_count: Optional[int] = None
+    model_config = ConfigDict(from_attributes=True)
+
+class DepartmentCreate(BaseModel):
+    name: str
+
+class DepartmentResponse(DepartmentCreate):
+    id: UUID
+    org_id: UUID
+    model_config = ConfigDict(from_attributes=True)
+
+class FacilityCreate(BaseModel):
+    name: str
+    city: Optional[str] = None
+    country_code: Optional[str] = None
+    floor_area_m2: Optional[Decimal] = None
+
+class FacilityResponse(FacilityCreate):
+    id: UUID
+    org_id: UUID
+    model_config = ConfigDict(from_attributes=True)
