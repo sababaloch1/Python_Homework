@@ -26,6 +26,11 @@ from api.app.core.database import Base
 from api.app.core import models
 
 target_metadata = Base.metadata
+
+# Use DATABASE_URL (set by docker compose / .env) instead of the url in alembic.ini
+_db_url = os.getenv("DATABASE_URL")
+if _db_url:
+    config.set_main_option("sqlalchemy.url", _db_url.replace("%", "%%"))
 # other values from the config, defined by the needs of env.py,
 # can be acquired:
 # my_important_option = config.get_main_option("my_important_option")
