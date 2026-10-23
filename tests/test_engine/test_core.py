@@ -159,3 +159,17 @@ def test_fr_2_05_cost_uses_tariff_with_unit_conversion():
     t = Tariff(id="t1", region="DE", activity_type="electricity", unit="kWh",
                eur_per_unit=Decimal("0.30"), year=2024, source="admin")
     assert calculate_cost(act(amount="2", unit="MWh"), t) == Decimal("600.00")
+
+
+# ---- tariff selection (cost estimate) -------------------------------------------
+def test_fr_2_05_tariff_fallback_and_missing_tariff_is_none():
+    from api.app.engine.core import select_tariff
+    mk = lambda id, region, year: Tariff(id=id, region=region, activity_type="electricity", unit="kWh",
+                                         eur_per_unit=Decimal("0.3"), year=year, source="admin")
+    ts = [mk("de22", "DE", 2022), mk("de25", "DE", 2025), mk("g24", "GLOBAL", 2024)]
+    assert select_tariff(ts, "electricity", "DE", 2024).id == "de25"      # nearest year
+    assert select_tariff(ts, "electricity", "DE", 2023).id == "de22"      # tie 2022/2025? no: 2022 is nearer
+    tie = [mk("a", "DE", 2022), mk("b", "DE", 2024)]
+    assert select_tariff(tie, "electricity", "DE", 2023).id == "a"        # tie -> earlier year
+    assert select_tariff(ts, "electricity", "FR", 2024).id == "g24"       # GLOBAL
+    assert select_tariff(ts, "diesel", "DE", 2024) is None

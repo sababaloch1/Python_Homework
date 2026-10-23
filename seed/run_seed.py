@@ -3,13 +3,16 @@
 Run:  python -m seed.run_seed
 Extend later with emission factors/tariffs (S2) and 24 months of activity data.
 """
+from pathlib import Path
+
 from api.app.core.database import SessionLocal
 from api.app.core.enums import UserRole
 from api.app.core.models import Department, Facility, Organization, User
 from api.app.core.security import get_password_hash
+from api.app.engine.importer import load_seed_files
 
-DEMO_EMAIL = "demo@carbonlens.local"
-DEMO_PASSWORD = "demo1234"  # demo only
+DEMO_EMAIL = "user2acc@carbonlens.local"
+DEMO_PASSWORD = "user2account"  
 
 
 def seed_demo_company(db) -> None:
@@ -32,4 +35,5 @@ def seed_demo_company(db) -> None:
 
 if __name__ == "__main__":
     with SessionLocal() as session:
+        load_seed_files(session, Path(__file__).parent)   # S2: factors.csv + tariffs.csv
         seed_demo_company(session)
