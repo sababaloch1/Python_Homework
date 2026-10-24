@@ -8,7 +8,7 @@ services:
     volumes:
       - pgdata:/var/lib/postgresql/data
     ports:
-      - "5433:5432"   # 5433 on the host so it never clashes with a local Postgres
+      - "5433:5432"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
       interval: 5s
@@ -21,6 +21,11 @@ services:
       dockerfile: api/Dockerfile
     environment:
       DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@db:5432/${POSTGRES_DB:-carbonlens}
+      DB_HOST: db
+      DB_PORT: "5432"
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: ${POSTGRES_DB:-carbonlens}
       JWT_SECRET: "${JWT_SECRET:?JWT_SECRET is missing. Create .env first: copy .env.example .env}"
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
     depends_on:
@@ -47,7 +52,7 @@ services:
     ports:
       - "8501:8501"
 
-  adminer:            # optional browser view of the database: http://localhost:8080
+  adminer:
     image: adminer:4
     profiles: ["tools"]
     environment:

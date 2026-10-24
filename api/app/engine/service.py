@@ -89,6 +89,28 @@ def _compute(ctx: _Context, category: Optional[str], amount, unit: str, region: 
     return Computed(True, result.kg_co2e, cost, result.scope, result.method, result.factor_id, trace)
 
 
+def _compute_market(green: List[Factor], category: Optional[str], amount, unit: str, year: int) -> Optional[Computed]:
+    """FR-2.07: market-based Scope 2 from the facility's green-tariff factor.
+    Returns None when the facility has no green tariff (or the record is not electricity).
+    Cost stays on the location-based result so money is never counted twice."""
+    if category != "electricity" or not green:
+        return None
+    base = {"category": category, "amount": str(amount), "unit": unit, "year": year, "method": "market_based"}
+    try:
+        activity = Activity(category=category, amount=to_decimal(amount), unit=unit,
+                            region=repository.GREEN_REGION, year=year)
+        factor = select_factor(green, category, repository.GREEN_REGION, year)
+        result = calculate(activity, factor, method="market_based")
+    except EmissionError as exc:
+        return Computed(False, None, None, "scope_2", "market_based", None,
+                        {**base, "error": str(exc), "error_type": type(exc).__name__})
+    trace = dict(result.trace)
+    trace.update({"method": "market_based", "green_tariff_id": factor.id,
+                  "cost": {"note": "cost is stored on the location-based result"}})
+    # factor_id stays empty: the green tariff is not a row of emission_factors (foreign key)
+    return Computed(True, result.kg_co2e, None, "scope_2", "market_based", None, trace)
+
+
 def _to_row(c: Computed, activity_id=None, reading_id=None) -> EmissionResult:
     return EmissionResult(
         activity_id=activity_id,
@@ -123,7 +145,8 @@ def _retire(db: Session, *, activity_ids: Iterable = (), reading_ids: Iterable =
 # --------------------------------------------------------------------------- queries
 def _activity_query():
     return (
-        select(ActivityRecord, Facility.country_code.label("fac_cc"), Organization.country_code.label("org_cc"))
+        select(ActivityRecord, Facility.country_code.label("fac_cc"), Organization.country_code.label("org_cc"),
+               ActivityRecord.facility_id.label("fac_id"))
         .outerjoin(Facility, ActivityRecord.facility_id == Facility.id)
         .outerjoin(Organization, ActivityRecord.org_id == Organization.id)
     )
@@ -131,7 +154,8 @@ def _activity_query():
 
 def _reading_query():
     return (
-        select(MeterReading, Facility.country_code.label("fac_cc"), Organization.country_code.label("org_cc"))
+        select(MeterReading, Facility.country_code.label("fac_cc"), Organization.country_code.label("org_cc"),
+               Asset.facility_id.label("fac_id"))
         .join(Asset, MeterReading.asset_id == Asset.id)
         .outerjoin(Facility, Asset.facility_id == Facility.id)
         .outerjoin(Organization, MeterReading.org_id == Organization.id)
@@ -141,14 +165,19 @@ def _reading_query():
 def _compute_activity_rows(db: Session, rows) -> int:
     """Calculate many activities with ONE factor/tariff load per category (NFR-2.04)."""
     contexts: Dict[str, _Context] = {}
+    green = repository.load_green_factors(db, [r[3] for r in rows])
     new_rows, ids = [], []
-    for activity, fac_cc, org_cc in rows:
+    for activity, fac_cc, org_cc, fac_id in rows:
         category = repository.enum_value(activity.category)
         if category not in contexts:
             contexts[category] = _context(db, category)
-        c = _compute(contexts[category], category, activity.amount, repository.enum_value(activity.unit),
-                     _region(fac_cc, org_cc), activity.period_start.year)
+        unit = repository.enum_value(activity.unit)
+        year = activity.period_start.year
+        c = _compute(contexts[category], category, activity.amount, unit, _region(fac_cc, org_cc), year)
         new_rows.append(_to_row(c, activity_id=activity.id))
+        m = _compute_market(green.get(str(fac_id), []), category, activity.amount, unit, year)
+        if m is not None:
+            new_rows.append(_to_row(m, activity_id=activity.id))
         ids.append(activity.id)
     _retire(db, activity_ids=ids)
     db.add_all(new_rows)
@@ -158,14 +187,20 @@ def _compute_activity_rows(db: Session, rows) -> int:
 
 def _compute_reading_rows(db: Session, rows) -> int:
     contexts: Dict[str, _Context] = {}
+    green = repository.load_green_factors(db, [r[3] for r in rows])
     new_rows, ids = [], []
-    for reading, fac_cc, org_cc in rows:
+    for reading, fac_cc, org_cc, fac_id in rows:
         category = repository.enum_value(reading.category)
         if category and category not in contexts:
             contexts[category] = _context(db, category)
-        c = _compute(contexts.get(category, _Context([], [])), category, reading.value,
-                     repository.enum_value(reading.unit), _region(fac_cc, org_cc), reading.recorded_at.year)
+        unit = repository.enum_value(reading.unit)
+        year = reading.recorded_at.year
+        c = _compute(contexts.get(category, _Context([], [])), category, reading.value, unit,
+                     _region(fac_cc, org_cc), year)
         new_rows.append(_to_row(c, reading_id=reading.id))
+        m = _compute_market(green.get(str(fac_id), []), category, reading.value, unit, year)
+        if m is not None:
+            new_rows.append(_to_row(m, reading_id=reading.id))
         ids.append(reading.id)
     _retire(db, reading_ids=ids)
     db.add_all(new_rows)
@@ -188,8 +223,10 @@ def calculate_reading(db: Session, reading_id) -> EmissionResult:
     if row is None:
         raise LookupError(f"Reading {reading_id} not found")
     _compute_reading_rows(db, [row])
-    return db.execute(select(EmissionResult).where(
-        EmissionResult.reading_id == reading_id, EmissionResult.is_current.is_(True))).scalars().first()
+    rows = db.execute(select(EmissionResult).where(
+        EmissionResult.reading_id == reading_id, EmissionResult.is_current.is_(True))).scalars().all()
+    rows.sort(key=lambda r: r.method == Scope2Method.market_based)
+    return rows[0] if rows else None
 
 
 def calculate_batch(db: Session, import_batch_id) -> int:
@@ -208,6 +245,17 @@ def recalculate_category(db: Session, category: str) -> Dict[str, int]:
             "readings": _compute_reading_rows(db, r_rows) if r_rows else 0}
 
 
+def recalculate_facility(db: Session, facility_id) -> Dict[str, int]:
+    """FR-2.07: after a green tariff is set or removed, recalculate that facility's electricity."""
+    cat = ActivityCategory.electricity
+    a_rows = db.execute(_activity_query().where(ActivityRecord.facility_id == facility_id,
+                                                ActivityRecord.category == cat)).all()
+    r_rows = db.execute(_reading_query().where(Asset.facility_id == facility_id,
+                                               MeterReading.category == cat)).all()
+    return {"activities": _compute_activity_rows(db, a_rows) if a_rows else 0,
+            "readings": _compute_reading_rows(db, r_rows) if r_rows else 0}
+
+
 def retire_activity_results(db: Session, activity_id) -> None:
     """Call before an activity is deleted so S3 stops counting its emissions."""
     _retire(db, activity_ids=[activity_id])
@@ -215,8 +263,11 @@ def retire_activity_results(db: Session, activity_id) -> None:
 
 
 def get_current_result(db: Session, *, activity_id) -> Optional[EmissionResult]:
-    return db.execute(select(EmissionResult).where(
-        EmissionResult.activity_id == activity_id, EmissionResult.is_current.is_(True))).scalars().first()
+    """The main result (location-based for electricity). The market-based one is a second row."""
+    rows = db.execute(select(EmissionResult).where(
+        EmissionResult.activity_id == activity_id, EmissionResult.is_current.is_(True))).scalars().all()
+    rows.sort(key=lambda r: r.method == Scope2Method.market_based)
+    return rows[0] if rows else None
 
 
 def get_results(db: Session, activity_id, include_history: bool = False) -> List[EmissionResult]:

@@ -8,11 +8,11 @@ from sqlalchemy.orm import Session
 from api.app.core.database import get_db
 from api.app.core.deps import get_current_user, require_admin
 from api.app.core.enums import ActivityCategory, AuditAction
-from api.app.core.models import ActivityRecord, EmissionFactor, RegionTariff, User
+from api.app.core.models import ActivityRecord, EmissionFactor, Facility, RegionTariff, User
 from api.app.data_identity.services import audit_service
 from api.app.engine import importer, repository, service
 from api.app.engine.schemas import (
-    FactorIn, FactorOut, ResultOut, SimulateChangeIn, SimulateChangeOut, SimulateIn,
+    FactorIn, FactorOut, GreenTariffIn, GreenTariffOut, ResultOut, SimulateChangeIn, SimulateChangeOut, SimulateIn,
     SimulateOut, TariffIn, TariffOut,
 )
 
@@ -134,3 +134,43 @@ def simulate(body: SimulateIn, db: Session = Depends(get_db), user: User = Depen
 @router.post("/simulate/compare", response_model=SimulateChangeOut)
 def simulate_compare(body: SimulateChangeIn, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     return service.simulate_change(db, [i.model_dump() for i in body.before], [i.model_dump() for i in body.after])
+
+
+# ------------------------------------------------------------------ green tariff = market-based Scope 2 (FR-2.07)
+def _own_facility(db: Session, facility_id: UUID, user: User) -> Facility:
+    fac = db.execute(select(Facility).where(Facility.id == facility_id, Facility.org_id == user.org_id)).scalars().first()
+    if fac is None:
+        raise HTTPException(status_code=404, detail="Facility not found")     # tenant isolation
+    return fac
+
+
+@router.get("/facilities/{facility_id}/green-tariff", response_model=List[GreenTariffOut])
+def get_green_tariff(facility_id: UUID, include_inactive: bool = False, db: Session = Depends(get_db),
+                     user: User = Depends(get_current_user)):
+    _own_facility(db, facility_id, user)
+    return repository.list_green_tariffs(db, facility_id, include_inactive)
+
+
+@router.put("/facilities/{facility_id}/green-tariff", response_model=GreenTariffOut)
+def set_green_tariff(facility_id: UUID, body: GreenTariffIn, db: Session = Depends(get_db),
+                     admin: User = Depends(require_admin)):
+    """Sets the facility's green-tariff factor. Its electricity then also gets a market-based result."""
+    _own_facility(db, facility_id, admin)
+    row, st = repository.upsert_green_tariff(db, facility_id, body.model_dump())
+    db.commit()
+    db.refresh(row)
+    if st != "unchanged":
+        audit_service.log_action(db, admin.org_id, admin.id, "FacilityGreenTariff", row.id, AuditAction.update,
+                                 {"status": st, "version": row.version, "kg_co2e_per_kwh": str(row.kg_co2e_per_kwh)})
+        service.recalculate_facility(db, facility_id)
+    return row
+
+
+@router.delete("/facilities/{facility_id}/green-tariff", status_code=status.HTTP_204_NO_CONTENT)
+def remove_green_tariff(facility_id: UUID, db: Session = Depends(get_db), admin: User = Depends(require_admin)):
+    """Soft delete: the history is kept (NFR-2.08)."""
+    _own_facility(db, facility_id, admin)
+    if repository.deactivate_green_tariffs(db, facility_id):
+        db.commit()
+        service.recalculate_facility(db, facility_id)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)

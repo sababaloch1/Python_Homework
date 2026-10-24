@@ -12,13 +12,14 @@ _UNITS = {
     "litre": ("volume", Decimal("1")),
     "m3": ("volume", Decimal("1000")),
     "km": ("distance", Decimal("1")),
+    "miles": ("distance", Decimal("1.609344")),     # exact definition: 1 mile = 1.609344 km
     "passenger_km": ("passenger_distance", Decimal("1")),
     "night": ("night", Decimal("1")),
 }
 
 
 class UnitConverter:
-    """Converts within one dimension only (energy, mass, volume).
+    """Converts within one dimension only (energy, mass, volume, distance).
 
     Cross-dimension conversion (litre -> kWh, m3 -> kWh) needs fuel properties,
     so it is rejected instead of guessed (NFR-2.10).

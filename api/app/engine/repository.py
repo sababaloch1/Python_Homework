@@ -1,13 +1,13 @@
 """Database access for S2. Converts ORM rows to the pure core objects and back."""
 from decimal import Decimal
 from enum import Enum
-from typing import List, Optional, Tuple
+from typing import Dict, Iterable, List, Optional, Tuple
 
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from api.app.core.enums import ActivityCategory, Scope, Unit
-from api.app.core.models import EmissionFactor, RegionTariff
+from api.app.core.models import EmissionFactor, FacilityGreenTariff, RegionTariff
 from api.app.engine.core import Factor, Tariff
 
 KG_SCALE = Decimal("0.000001")   # emission_factors.kg_co2e_per_unit is NUMERIC(14,6)
@@ -146,3 +146,66 @@ def upsert_tariff(db: Session, data: dict) -> Tuple[RegionTariff, str]:
     row.unit, row.eur_per_unit, row.source = unit, eur, data["source"]
     db.flush()
     return row, "updated"
+
+
+# ----------------------------------------------------------------- green tariffs (FR-2.07)
+GREEN_REGION = "FACILITY"   # pseudo-region so the normal selection rules (nearest year) can be reused
+GREEN_CATEGORY = "Purchased electricity (market-based, green tariff)"
+
+
+def to_core_green(row: FacilityGreenTariff) -> Factor:
+    return Factor(
+        id=str(row.id), activity_type="electricity", region=GREEN_REGION, year=row.year, unit="kWh",
+        kg_co2e_per_unit=Decimal(str(row.kg_co2e_per_kwh)), scope="scope_2", ghg_category=GREEN_CATEGORY,
+        source=row.source or "", version=row.version or 1, is_active=bool(row.is_active),
+    )
+
+
+def load_green_factors(db: Session, facility_ids: Iterable) -> Dict[str, List[Factor]]:
+    """facility id (as str) -> its active green-tariff factors."""
+    ids = [i for i in set(facility_ids) if i is not None]
+    out: Dict[str, List[Factor]] = {}
+    for i in range(0, len(ids), 500):
+        rows = db.execute(select(FacilityGreenTariff).where(
+            FacilityGreenTariff.facility_id.in_(ids[i:i + 500]),
+            FacilityGreenTariff.is_active.is_(True))).scalars().all()
+        for r in rows:
+            out.setdefault(str(r.facility_id), []).append(to_core_green(r))
+    return out
+
+
+def list_green_tariffs(db: Session, facility_id, include_inactive: bool = False) -> List[FacilityGreenTariff]:
+    q = select(FacilityGreenTariff).where(FacilityGreenTariff.facility_id == facility_id)
+    if not include_inactive:
+        q = q.where(FacilityGreenTariff.is_active.is_(True))
+    return list(db.execute(q.order_by(FacilityGreenTariff.year, FacilityGreenTariff.version.desc())).scalars().all())
+
+
+def upsert_green_tariff(db: Session, facility_id, data: dict) -> Tuple[FacilityGreenTariff, str]:
+    """One active value per facility and year; a change makes version + 1 (old one kept, inactive)."""
+    year = int(data["year"])
+    kg = Decimal(str(data["kg_co2e_per_kwh"])).quantize(KG_SCALE)
+    key = (FacilityGreenTariff.facility_id == facility_id, FacilityGreenTariff.year == year)
+    active = db.execute(select(FacilityGreenTariff).where(*key, FacilityGreenTariff.is_active.is_(True))
+                        .order_by(FacilityGreenTariff.version.desc())).scalars().first()
+    max_version = db.execute(select(func.max(FacilityGreenTariff.version)).where(*key)).scalar()
+    if active is not None:
+        if (Decimal(str(active.kg_co2e_per_kwh)).quantize(KG_SCALE) == kg
+                and (active.supplier or None) == (data.get("supplier") or None)
+                and (active.source or "") == data["source"]):
+            return active, "unchanged"
+        active.is_active = False
+    row = FacilityGreenTariff(facility_id=facility_id, year=year, kg_co2e_per_kwh=kg,
+                              supplier=data.get("supplier") or None, source=data["source"],
+                              version=(max_version or 0) + 1, is_active=True)
+    db.add(row)
+    db.flush()
+    return row, ("created" if max_version is None else "versioned")
+
+
+def deactivate_green_tariffs(db: Session, facility_id) -> int:
+    rows = list_green_tariffs(db, facility_id)
+    for r in rows:
+        r.is_active = False
+    db.flush()
+    return len(rows)

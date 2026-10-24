@@ -16,7 +16,7 @@ TOKEN_KEYS = ("token", "access_token", "jwt")   # if Member 3 uses another key, 
 CATEGORIES = ["electricity", "natural_gas", "diesel", "petrol", "fleet_km", "refrigerant",
               "flight_short_haul", "flight_long_haul", "rail", "hotel_night",
               "employee_commute", "waste_landfill", "waste_recycled", "water"]
-UNITS = ["kWh", "MWh", "m3", "litre", "km", "passenger_km", "night", "kg", "tonne"]
+UNITS = ["kWh", "MWh", "m3", "litre", "km", "miles", "passenger_km", "night", "kg", "tonne"]
 
 st.set_page_config(page_title="Factors & tariffs - CarbonLens", page_icon="🌍", layout="wide")
 st.title("Factors & tariffs")
@@ -101,7 +101,7 @@ if side.button("Log out"):
         st.session_state.pop(key, None)
     st.rerun()
 
-tab_factors, tab_tariffs, tab_sim = st.tabs(["Emission factors", "Tariffs", "Simulate"])
+tab_factors, tab_tariffs, tab_green, tab_sim = st.tabs(["Emission factors", "Tariffs", "Green electricity", "Simulate"])
 
 # ------------------------------------------------------------------ factors
 with tab_factors:
@@ -196,6 +196,40 @@ with tab_tariffs:
                     "eur_per_unit": t_val.replace(",", "."), "source": t_src}
             ok, res = api("POST", "/engine/tariffs", json=body)
             st.success("Saved. Affected results were recalculated.") if ok else show_error(res)
+
+# ------------------------------------------------------------------ green tariff (FR-2.07)
+with tab_green:
+    st.caption("A facility with a green-tariff factor gets a second, market-based Scope 2 result "
+               "for its electricity. The normal result stays location-based.")
+    ok, facilities = api("GET", "/facilities")
+    if not ok or not facilities:
+        st.info("No facilities found. Create a facility first.")
+    else:
+        names = {f"{f['name']} ({f.get('city') or '-'})": f["id"] for f in facilities}
+        choice = st.selectbox("Facility", list(names))
+        fid = names[choice]
+        ok, rows = api("GET", f"/engine/facilities/{fid}/green-tariff")
+        if ok and rows:
+            st.dataframe(pd.DataFrame(rows)[["year", "kg_co2e_per_kwh", "supplier", "source", "version"]],
+                         use_container_width=True, hide_index=True)
+        elif ok:
+            st.info("This facility has no green tariff (only location-based results).")
+        else:
+            show_error(rows)
+        with st.form("green_form"):
+            c1, c2 = st.columns(2)
+            g_year = c1.number_input("Year", 1990, 2100, 2026, key="g_year")
+            g_val = c2.text_input("kg CO2e per kWh (supplier-specific)", key="g_val")
+            g_sup = st.text_input("Supplier (optional)", key="g_sup")
+            g_src = st.text_input("Source, e.g. supplier certificate (required)", key="g_src")
+            if st.form_submit_button("Save green tariff (admin)"):
+                body = {"year": int(g_year), "kg_co2e_per_kwh": g_val.replace(",", "."),
+                        "supplier": g_sup or None, "source": g_src}
+                ok, res = api("PUT", f"/engine/facilities/{fid}/green-tariff", json=body)
+                st.success("Saved. Electricity results for this facility were recalculated.") if ok else show_error(res)
+        if st.button("Remove green tariff (admin)"):
+            ok, res = api("DELETE", f"/engine/facilities/{fid}/green-tariff")
+            st.success("Removed.") if ok else show_error(res)
 
 # ------------------------------------------------------------------ simulate (FR-2.10: nothing is saved)
 with tab_sim:

@@ -173,3 +173,23 @@ def test_fr_2_05_tariff_fallback_and_missing_tariff_is_none():
     assert select_tariff(tie, "electricity", "DE", 2023).id == "a"        # tie -> earlier year
     assert select_tariff(ts, "electricity", "FR", 2024).id == "g24"       # GLOBAL
     assert select_tariff(ts, "diesel", "DE", 2024) is None
+
+
+def test_fr_2_03_miles_to_km_and_back():
+    conv = UnitConverter()
+    assert conv.convert(Decimal("10"), "miles", "km")[0] == Decimal("16.09344")
+    assert conv.convert(Decimal("16.09344"), "km", "miles")[0] == Decimal("10")
+
+
+def test_fr_2_03_miles_activity_with_per_km_factor():
+    factor = Factor(id="f1", activity_type="fleet_km", region="DE", year=2026, unit="km",
+                    kg_co2e_per_unit=Decimal("0.16591"), scope="scope_1", ghg_category="x", source="DESNZ")
+    res = calculate(Activity("fleet_km", Decimal("100"), "miles", "DE", 2026), factor)
+    assert res.kg_co2e == Decimal("100") * Decimal("1.609344") * Decimal("0.16591")   # 26.70...
+    assert res.trace["unit_ratio"] == "1.609344"
+
+
+def test_fr_2_03_miles_cannot_become_passenger_km():
+    import pytest
+    with pytest.raises(UnknownUnitError):
+        UnitConverter().convert(Decimal("1"), "miles", "passenger_km")

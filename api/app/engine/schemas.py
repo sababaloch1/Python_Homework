@@ -105,3 +105,18 @@ class SimulateChangeOut(BaseModel):
     saving_kg_co2e: Decimal
     saving_pct: Optional[Decimal] = None
     saving_cost_eur: Decimal
+
+
+class GreenTariffIn(BaseModel):
+    year: int = Field(..., ge=1990, le=2100)
+    kg_co2e_per_kwh: Decimal = Field(..., ge=0, description="Supplier-specific factor, kg CO2e per kWh")
+    supplier: Optional[str] = Field(None, max_length=120)
+    source: str = Field(..., min_length=1, max_length=255)    # NFR-2.05
+
+
+class GreenTariffOut(GreenTariffIn):
+    id: UUID
+    facility_id: UUID
+    version: int
+    is_active: bool
+    model_config = ConfigDict(from_attributes=True)
