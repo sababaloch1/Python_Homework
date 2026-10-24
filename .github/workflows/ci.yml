@@ -22,5 +22,5 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - run: cp .env.example .env
+      - run: printf 'JWT_SECRET=ci-only-test-secret-not-used-anywhere-else\nPOSTGRES_PASSWORD=ci-password\n' > .env
       - run: docker compose build
