@@ -179,6 +179,21 @@ class RegionTariff(Base):
     year = Column(Integer)
     source = Column(String(255))
 
+class FacilityGreenTariff(Base):
+    """FR-2.07: a facility's green-tariff (supplier-specific) electricity factor.
+    When a facility has an active row, its electricity gets a market-based result
+    in addition to the location-based one. Versioned, never hard-deleted (NFR-2.08)."""
+    __tablename__ = "facility_green_tariffs"
+    id = Column(Uuid, primary_key=True, default=uuid.uuid4)
+    facility_id = Column(Uuid, ForeignKey("facilities.id"), nullable=False, index=True)
+    year = Column(Integer, nullable=False)
+    kg_co2e_per_kwh = Column(Numeric(14, 6), nullable=False)
+    supplier = Column(String(120))
+    source = Column(String(255), nullable=False)
+    version = Column(Integer, default=1)
+    is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime(timezone=True), default=datetime.utcnow)
+
 # ==========================================
 # S3 TABLES (Owned by Sameer)
 # ==========================================

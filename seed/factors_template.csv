@@ -1,0 +1,15 @@
+activity_type,region,year,unit,kg_co2e_per_unit,scope,ghg_category,source
+electricity,DE,2024,kWh,0.363,scope_2,Purchased electricity,Umweltbundesamt - CO2-Emissionen pro Kilowattstunde Strom 2024 - 363 g CO2 per kWh (German consumption mix)
+natural_gas,GLOBAL,2026,m3,2.02633,scope_1,Stationary combustion,DESNZ GHG Conversion Factors 2026 (full set) - sheet 'Fuels' cell D40 - Natural gas - cubic metres - total kg CO2e
+diesel,GLOBAL,2026,litre,2.58354,scope_1,Fuel combustion,DESNZ GHG Conversion Factors 2026 (full set) - sheet 'Fuels' cell D72 - Diesel (average biofuel blend) - litres - total kg CO2e
+petrol,GLOBAL,2026,litre,2.075,scope_1,Fuel combustion,DESNZ GHG Conversion Factors 2026 (full set) - sheet 'Fuels' cell D96 - Petrol (average biofuel blend) - litres - total kg CO2e
+fleet_km,GLOBAL,2026,km,0.16591,scope_1,Mobile combustion (company vehicles),DESNZ GHG Conversion Factors 2026 (full set) - sheet 'Passenger vehicles' cell X54 - Cars by size - Average car - Unknown fuel - per km
+refrigerant,GLOBAL,2026,kg,1924,scope_1,Fugitive emissions,DESNZ GHG Conversion Factors 2026 (full set) - sheet 'Refrigerant & other' cell F76 - R410A - per kg - total emissions
+flight_short_haul,GLOBAL,2026,passenger_km,0.12786,scope_3,Category 6: Business travel,DESNZ GHG Conversion Factors 2026 (full set) - sheet 'Business travel- air' cell E24 - Short-haul to/from UK - average passenger - with radiative forcing
+flight_long_haul,GLOBAL,2026,passenger_km,0.15282,scope_3,Category 6: Business travel,DESNZ GHG Conversion Factors 2026 (full set) - sheet 'Business travel- air' cell E27 - Long-haul to/from UK - average passenger - with radiative forcing
+rail,GLOBAL,2026,passenger_km,0.03092,scope_3,Category 6: Business travel,DESNZ GHG Conversion Factors 2026 (full set) - sheet 'Business travel- land' cell D87 - Rail - National rail - per passenger.km
+hotel_night,DE,2026,night,13.2,scope_3,Category 6: Business travel,DESNZ GHG Conversion Factors 2026 (full set) - sheet 'Hotel stay' cell D43 - Germany - room per night
+employee_commute,GLOBAL,2026,km,0.16591,scope_3,Category 7: Employee commuting,DESNZ GHG Conversion Factors 2026 (full set) - sheet 'Passenger vehicles' cell X54 - Average car - Unknown fuel - per km (assumes one employee per car)
+waste_landfill,GLOBAL,2026,tonne,520.58023,scope_3,Category 5: Waste generated in operations,DESNZ GHG Conversion Factors 2026 (full set) - sheet 'Waste disposal' cell I52 - Commercial and industrial waste - landfill - per tonne
+waste_recycled,GLOBAL,2026,tonne,4.65358,scope_3,Category 5: Waste generated in operations,DESNZ GHG Conversion Factors 2026 (full set) - sheet 'Waste disposal' cell F52 - Commercial and industrial waste - closed-loop recycling - per tonne
+water,GLOBAL,2026,m3,0.1913,scope_3,Purchased goods and services (water supply),DESNZ GHG Conversion Factors 2026 (full set) - sheet 'Water supply' cell D18 - Water supply - cubic metres

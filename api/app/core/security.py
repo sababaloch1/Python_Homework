@@ -5,7 +5,10 @@ import bcrypt
 import os
 
 # In production, this MUST be in a .env file
-SECRET_KEY = os.getenv("JWT_SECRET", "super-secret-saba-key-change-me")
+SECRET_KEY = os.getenv("JWT_SECRET")
+if not SECRET_KEY:
+    raise RuntimeError("JWT_SECRET environment variable is not set")
+
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60  # NFR-1.03: Tokens expire after 60 minutes
 

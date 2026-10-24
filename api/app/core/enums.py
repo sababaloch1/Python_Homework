@@ -27,6 +27,7 @@ class Unit(str, Enum):
     m3 = "m3"
     litre = "litre"
     km = "km"
+    miles = "miles"
     passenger_km = "passenger_km"
     night = "night"
     kg = "kg"

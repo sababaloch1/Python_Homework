@@ -1,3 +1,0 @@
-category,amount,unit,period_start,period_end,note
-electricity,1500,kWh,2026-02-01,2026-02-28,February bill
-natural_gas,200,m3,2026-02-01,2026-02-28,Heating

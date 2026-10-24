@@ -7,6 +7,7 @@ import uuid
 from api.app.core.database import get_db
 from api.app.core.models import User, Asset, MeterReading
 from api.app.core.deps import get_current_user
+from api.app.engine import service as engine_service
 from api.app.data_identity.schemas import (
     AssetCreate, AssetResponse, MeterReadingCreate, MeterReadingResponse
 )
@@ -65,6 +66,6 @@ def create_reading(
    
     
     # ⭐ THE HANDOFF TO S2 FOR REAL-TIME DATA
-    print(f"⭐⭐ [S1 -> S2 HANDOFF] Triggering engine.calculate for reading_id: {new_reading.id} ⭐⭐")
+    engine_service.safe_calculate_reading(db, new_reading.id)
     
     return new_reading
