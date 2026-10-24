@@ -26,7 +26,8 @@ services:
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
       POSTGRES_DB: ${POSTGRES_DB:-carbonlens}
-      JWT_SECRET: "${JWT_SECRET:?JWT_SECRET is missing. Create .env first: copy .env.example .env}"
+      JWT_SECRET: "${JWT_SECRET:?JWT_SECRET is missing. Get the .env file from Tuba}"
+      
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
     depends_on:
       db:
