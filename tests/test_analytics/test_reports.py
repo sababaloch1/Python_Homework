@@ -112,7 +112,8 @@ def test_reports_endpoints_seeded_timing(db):
         assert res_pdf.content.startswith(b"%PDF-")
         assert t_pdf < 10.0, f"PDF report took too long: {t_pdf:.2f}s"
     finally:
-        app.dependency_overrides.pop(get_db, None)
+        from tests.conftest import override_get_db
+        app.dependency_overrides[get_db] = override_get_db
 
 
 def test_reports_unauthorized(client):

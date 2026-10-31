@@ -101,4 +101,5 @@ def test_dashboard_endpoints_speed_under_3_seconds(db):
         assert r_sources.status_code == 200
         assert elapsed < 3.0, f"Four dashboard endpoints took {elapsed:.3f}s (must be < 3.0s)"
     finally:
-        app.dependency_overrides.pop(get_db, None)
+        from tests.conftest import override_get_db
+        app.dependency_overrides[get_db] = override_get_db

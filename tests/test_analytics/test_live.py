@@ -103,5 +103,6 @@ def test_get_live_endpoint_seeded(db):
         for f in data["facilities"]:
             assert f["t_co2e"] > 0
     finally:
-        app.dependency_overrides.pop(get_db, None)
+        from tests.conftest import override_get_db
+        app.dependency_overrides[get_db] = override_get_db
 
