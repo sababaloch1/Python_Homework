@@ -10,6 +10,12 @@ import pandas as pd
 import requests
 import streamlit as st
 
+from ui.auth_state import current_email, current_org_name, current_role
+from ui.charts import styled_table
+from ui.theme import apply_theme, current_mode
+
+apply_theme()
+
 API_URL = os.getenv("API_URL", "http://localhost:8000")
 TOKEN_KEYS = ("token", "access_token", "jwt")   # if Member 3 uses another key, add it here
 
@@ -18,8 +24,8 @@ CATEGORIES = ["electricity", "natural_gas", "diesel", "petrol", "fleet_km", "ref
               "employee_commute", "waste_landfill", "waste_recycled", "water"]
 UNITS = ["kWh", "MWh", "m3", "litre", "km", "miles", "passenger_km", "night", "kg", "tonne"]
 
-st.set_page_config(page_title="Factors & tariffs - CarbonLens", page_icon="🌍", layout="wide")
-st.title("Factors & tariffs")
+st.title("⚡ Factors & Tariffs")
+st.caption(f"Organization: **{current_org_name()}** | Emission Factors, Tariffs & Scenario Engine")
 
 
 # ------------------------------------------------------------------ auth
@@ -93,14 +99,7 @@ def show_import_result(result):
                f"{result.get('updated', 0)} updated, {result.get('unchanged', 0)} unchanged.")
 
 
-# role check: the JWT carries the role; a non-admin gets 403 on write calls, which show_error displays.
-side = st.sidebar
-side.caption(f"API: {API_URL}")
-if side.button("Log out"):
-    for key in TOKEN_KEYS:
-        st.session_state.pop(key, None)
-    st.rerun()
-
+# Role check: the JWT carries the role; a non-admin gets 403 on write calls, which show_error displays.
 tab_factors, tab_tariffs, tab_green, tab_sim = st.tabs(["Emission factors", "Tariffs", "Green electricity", "Simulate"])
 
 # ------------------------------------------------------------------ factors
@@ -126,7 +125,7 @@ with tab_factors:
         else:
             cols = ["activity_type", "region", "year", "unit", "kg_co2e_per_unit", "scope",
                     "ghg_category", "version", "is_active", "source"]
-            st.dataframe(df[cols], use_container_width=True, hide_index=True)
+            st.dataframe(styled_table(df[cols], mode=current_mode()), use_container_width=True, hide_index=True)
             st.caption(f"{len(df)} factor(s). Changing a factor creates a new version; old ones are kept (NFR-2.08).")
     else:
         show_error(data)
@@ -169,8 +168,8 @@ with tab_tariffs:
         if df.empty:
             st.info("No tariffs yet.")
         else:
-            st.dataframe(df[["activity_type", "region", "year", "unit", "eur_per_unit", "source"]],
-                         use_container_width=True, hide_index=True)
+            t_cols = ["activity_type", "region", "year", "unit", "eur_per_unit", "source"]
+            st.dataframe(styled_table(df[t_cols], mode=current_mode()), use_container_width=True, hide_index=True)
     else:
         show_error(data)
 
@@ -210,7 +209,8 @@ with tab_green:
         fid = names[choice]
         ok, rows = api("GET", f"/engine/facilities/{fid}/green-tariff")
         if ok and rows:
-            st.dataframe(pd.DataFrame(rows)[["year", "kg_co2e_per_kwh", "supplier", "source", "version"]],
+            g_cols = ["year", "kg_co2e_per_kwh", "supplier", "source", "version"]
+            st.dataframe(styled_table(pd.DataFrame(rows)[g_cols], mode=current_mode()),
                          use_container_width=True, hide_index=True)
         elif ok:
             st.info("This facility has no green tariff (only location-based results).")
@@ -263,7 +263,8 @@ with tab_sim:
 
     def result_table(out):
         t = pd.DataFrame(out["items"])
-        st.dataframe(t[["label", "category", "amount", "unit", "kg_co2e", "cost_eur", "scope", "error"]],
+        res_cols = ["label", "category", "amount", "unit", "kg_co2e", "cost_eur", "scope", "error"]
+        st.dataframe(styled_table(t[res_cols], mode=current_mode()),
                      use_container_width=True, hide_index=True)
         if out["errors"]:
             st.warning(f"{out['errors']} item(s) could not be calculated (missing factor or unit mismatch). "
