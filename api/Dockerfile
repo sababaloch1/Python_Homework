@@ -3,8 +3,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 PYTHONPATH=/app
 WORKDIR /app
 
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
-
+RUN pip install --no-cache-dir --timeout 1000 --retries 20 -r requirements.txt
 COPY alembic.ini .
 COPY alembic ./alembic
 COPY api ./api
